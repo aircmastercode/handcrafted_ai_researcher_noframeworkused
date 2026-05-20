@@ -1,0 +1,20 @@
+# Keep the Docker context lean.
+.git
+.gitignore
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.env
+.env.local
+*.db
+*.db-journal
+eval/results.json
+eval/sample_runs
+fastembed_cache
+.DS_Store
+.vscode
+.idea

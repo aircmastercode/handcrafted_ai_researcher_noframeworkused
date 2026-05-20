@@ -2,9 +2,8 @@
 title: Deep Research Agent
 colorFrom: indigo
 colorTo: blue
-sdk: streamlit
-sdk_version: 1.57.0
-app_file: app.py
+sdk: docker
+app_port: 7860
 pinned: false
 short_description: A from-scratch web research agent with citations, sessions, and a custom eval harness.
 ---
@@ -364,39 +363,36 @@ per-item transcript (search queries, opened URLs, selected snippets, raw answer 
 We chose Hugging Face Spaces for its 16 GB RAM (vs Streamlit Cloud's 690 MB–2.7 GB),
 built-in secrets, and 48-hour idle window.
 
+Hugging Face deprecated their built-in Streamlit SDK in April 2025, so this repo
+ships with a `Dockerfile` and the Space is configured with `sdk: docker`. The
+Dockerfile pre-downloads the embedding model at build time so the first request
+is fast.
+
 ### One-time setup
 
 1. Sign in at https://huggingface.co (free).
-2. Click your avatar → **New Space**.
+2. Open **https://huggingface.co/new-space**.
 3. Fill in:
-   - **Space name**: `deep-research-agent` (or whatever you like)
-   - **License**: MIT
-   - **Select the Space SDK**: **Streamlit**
-   - **Hardware**: CPU basic (free)
-   - **Public** or **Private** — your call.
+   - **Space name**: `deep-research-agent` (or any name)
+   - **License**: `mit`
+   - **Select the Space SDK**: **Docker** → **Blank** template
+   - **Space hardware**: CPU basic · 2 vCPU · 16 GB · free
+   - **Public** or **Private** — your call
 4. Click **Create Space**.
 
 ### Push the code
 
-Hugging Face Spaces is a git repository. Two options:
-
-**Option A — via Hugging Face CLI (recommended)**
+Hugging Face Spaces is a git repository. From inside `SarvamAi/`:
 
 ```bash
-pip install -U "huggingface_hub[cli]"
-hf auth login                                    # paste a write token from huggingface.co/settings/tokens
+# (one-time) create a write token at https://huggingface.co/settings/tokens
 
-# from inside the SarvamAi/ folder
-git init -b main
+git init -b main                                # only needed the first time
 git add . && git commit -m "Initial deep research agent"
 git remote add space https://huggingface.co/spaces/<your-username>/deep-research-agent
 git push space main
+# When prompted, use your username + the hf_... write token as the password.
 ```
-
-**Option B — via the web UI**
-
-Drag-and-drop every file in `SarvamAi/` into the Space's **Files** tab via the
-"Add file" button. Make sure `app.py` and `requirements.txt` are at the top level.
 
 ### Add your secrets
 
@@ -415,12 +411,13 @@ production.
 ### First boot
 
 After saving the secrets, the Space rebuilds automatically. The first build takes
-2–3 minutes (downloads `fastembed`'s ~130 MB BGE-small model on first request).
-After that the app is live; subsequent cold starts are ~30 seconds.
+~3–5 minutes (the Dockerfile installs dependencies and pre-downloads the embedding
+model). After that the app is live at the Space URL; subsequent cold starts are
+~30 seconds.
 
 > Sessions and the SQLite file live on the Space's ephemeral disk. They persist
 > while the Space is warm but reset across hard restarts. Acceptable for a demo;
-> a small Postgres add-on or HF Persistent Storage would make them durable.
+> Hugging Face Persistent Storage would make sessions durable.
 
 ---
 
