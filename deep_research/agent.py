@@ -157,7 +157,7 @@ class DeepResearchAgent:
             queries=plan.search_queries,
         )
         try:
-            results = await self.search.multi_search(
+            batch = await self.search.multi_search(
                 plan.search_queries,
                 per_query=max(3, self.max_search_results // 2),
                 search_depth="advanced",
@@ -167,15 +167,27 @@ class DeepResearchAgent:
             yield evt(Phase.ERROR, f"Search failed: {e!s}")
             return
 
-        results = results[: self.max_search_results]
+        results = batch.results[: self.max_search_results]
+        search_errors = batch.errors
+
         yield evt(
             Phase.SEARCH_DONE,
             f"Found {len(results)} unique results",
             results=[r.model_dump() for r in results],
+            errors=search_errors,
         )
 
         if not results:
-            yield evt(Phase.ERROR, "No web results found for this query.")
+            # Build a helpful, actionable error that surfaces what actually failed.
+            msg = "No web results found for this query."
+            if search_errors:
+                err_summary = "; ".join(f"{q!r}: {e[:200]}" for q, e in search_errors[:3])
+                msg = (
+                    f"All {len(plan.search_queries)} Tavily search(es) failed. "
+                    f"This usually means the TAVILY_API_KEY is invalid, exhausted, or "
+                    f"unreachable from this environment. Details: {err_summary}"
+                )
+            yield evt(Phase.ERROR, msg, errors=search_errors)
             return
 
         # --- Phase 3: FETCH --------------------------------------------

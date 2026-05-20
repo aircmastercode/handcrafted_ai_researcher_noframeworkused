@@ -8,11 +8,20 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
 import httpx
 
 from deep_research.models import SearchResult, domain_of
+
+
+@dataclass
+class SearchBatch:
+    """Result of `multi_search`: merged results + the errors we observed."""
+
+    results: list[SearchResult] = field(default_factory=list)
+    errors: list[tuple[str, str]] = field(default_factory=list)
 
 log = logging.getLogger(__name__)
 
@@ -69,23 +78,40 @@ class TavilySearch:
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     resp = await client.post(TAVILY_SEARCH_URL, json=payload)
-                # 429 / 5xx: retry with backoff
+                # Permanent errors (auth, payment, forbidden) — don't retry; surface body.
+                if resp.status_code in (400, 401, 402, 403, 404, 422):
+                    body = (resp.text or "")[:300].replace("\n", " ").strip()
+                    raise SearchError(
+                        f"Tavily HTTP {resp.status_code} (no retry): {body}"
+                    )
+                # Transient — retry with backoff.
                 if resp.status_code in (429, 500, 502, 503, 504):
-                    raise SearchError(f"Tavily transient error {resp.status_code}: {resp.text[:200]}")
+                    body = (resp.text or "")[:300].replace("\n", " ").strip()
+                    raise SearchError(f"Tavily HTTP {resp.status_code} (transient): {body}")
                 resp.raise_for_status()
                 data = resp.json()
                 return _parse_tavily_response(data, query=query)
-            except (httpx.HTTPError, SearchError) as e:
+            except SearchError as e:
+                last_exc = e
+                # Permanent errors — abort immediately
+                if "(no retry)" in str(e):
+                    break
+                if attempt < self.max_retries:
+                    backoff = 0.6 * (2**attempt)
+                    log.warning(
+                        "Tavily search retry %d/%d for %r after %.1fs (%s)",
+                        attempt + 1, self.max_retries, query, backoff, e,
+                    )
+                    await asyncio.sleep(backoff)
+                else:
+                    log.error("Tavily search permanently failed for %r: %s", query, e)
+            except httpx.HTTPError as e:
                 last_exc = e
                 if attempt < self.max_retries:
                     backoff = 0.6 * (2**attempt)
                     log.warning(
                         "Tavily search retry %d/%d for %r after %.1fs (%s)",
-                        attempt + 1,
-                        self.max_retries,
-                        query,
-                        backoff,
-                        e,
+                        attempt + 1, self.max_retries, query, backoff, e,
                     )
                     await asyncio.sleep(backoff)
                 else:
@@ -100,13 +126,18 @@ class TavilySearch:
         per_query: int = 5,
         search_depth: str = "advanced",
         concurrency: int = 4,
-    ) -> list[SearchResult]:
-        """Run several queries concurrently, merge, dedup by URL, keep best score per URL."""
+    ) -> "SearchBatch":
+        """Run several queries concurrently, merge, dedup by URL, keep best score per URL.
+
+        Returns a SearchBatch with both the merged results and a list of per-query
+        errors so callers can surface them to the UI rather than silently dropping them.
+        """
         qs = [q.strip() for q in queries if q and q.strip()]
         if not qs:
-            return []
+            return SearchBatch(results=[], errors=[])
 
         sem = asyncio.Semaphore(concurrency)
+        errors: list[tuple[str, str]] = []
 
         async def _one(q: str) -> list[SearchResult]:
             async with sem:
@@ -114,6 +145,7 @@ class TavilySearch:
                     return await self.search(q, max_results=per_query, search_depth=search_depth)
                 except Exception as e:  # noqa: BLE001
                     log.warning("multi_search: dropping query %r due to %s", q, e)
+                    errors.append((q, str(e)))
                     return []
 
         all_results = await asyncio.gather(*(_one(q) for q in qs))
@@ -127,8 +159,8 @@ class TavilySearch:
                         merged[key] = r
                 else:
                     merged[key] = r
-        # Sort by score desc
-        return sorted(merged.values(), key=lambda r: r.score, reverse=True)
+        ranked = sorted(merged.values(), key=lambda r: r.score, reverse=True)
+        return SearchBatch(results=ranked, errors=errors)
 
 
 # ---------------------------------------------------------------------------

@@ -23,6 +23,7 @@ from deep_research.agent import DeepResearchAgent
 from deep_research.fetch import FetchedPage
 from deep_research.models import Message, Plan, SearchResult, now_iso
 from deep_research.progress import Phase
+from deep_research.search import SearchBatch
 from deep_research.session import SessionStore
 
 
@@ -76,7 +77,7 @@ class MockSearch:
                         query=q,
                     )
                 )
-        return results
+        return SearchBatch(results=results, errors=[])
 
 
 def make_mock_fetch(label_prefix: str = "Article body"):
