@@ -5,7 +5,7 @@ colorTo: blue
 sdk: docker
 app_port: 7860
 pinned: false
-short_description: A from-scratch web research agent with citations, sessions, and a custom eval harness.
+short_description: Web research agent with cited answers + eval harness.
 ---
 
 # Deep Research Agent
