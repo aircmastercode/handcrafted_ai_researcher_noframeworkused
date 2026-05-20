@@ -42,13 +42,16 @@ st.set_page_config(
 
 
 def _get_secret(name: str, default: str = "") -> str:
-    # Prefer st.secrets (HF Spaces / Streamlit Cloud); fall back to env.
+    """Read a secret. HF Spaces injects secrets as env vars. Streamlit Cloud uses st.secrets."""
+    val = os.getenv(name, "")
+    if val:
+        return val
     try:
         if name in st.secrets:
             return str(st.secrets[name]) or default
     except Exception:
         pass
-    return os.getenv(name, default)
+    return default
 
 
 # Push secrets into the env so the rest of the codebase can use os.getenv.
@@ -56,6 +59,15 @@ for _k in ("TAVILY_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY", "OLLAMA_URL", "OL
     _v = _get_secret(_k)
     if _v:
         os.environ[_k] = _v
+
+
+def _mask(v: str) -> str:
+    """Return a masked preview of a secret, e.g. 'tvly****XXXX'."""
+    if not v:
+        return ""
+    if len(v) <= 8:
+        return "*" * len(v)
+    return v[:4] + "*" * 4 + v[-4:]
 
 
 @st.cache_resource(show_spinner=False)
@@ -334,13 +346,36 @@ def main() -> None:
         "and answers with real citations."
     )
 
-    if not (os.getenv("TAVILY_API_KEY") and (os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"))):
+    tavily = os.getenv("TAVILY_API_KEY", "")
+    groq = os.getenv("GROQ_API_KEY", "")
+    gemini = os.getenv("GEMINI_API_KEY", "")
+    if not (tavily and (groq or gemini)):
         st.warning(
-            "Missing credentials. Set **TAVILY_API_KEY** and at least one of "
-            "**GROQ_API_KEY** / **GEMINI_API_KEY** "
-            "(see `.env.example`).",
+            "Missing credentials — the agent cannot run until these are set.",
             icon=None,
         )
+        with st.expander("Diagnostics — what the container actually sees", expanded=True):
+            st.markdown(
+                f"""
+- `TAVILY_API_KEY`: **{('configured (' + _mask(tavily) + ')') if tavily else 'MISSING'}**
+- `GROQ_API_KEY`: **{('configured (' + _mask(groq) + ')') if groq else 'MISSING'}**
+- `GEMINI_API_KEY`: **{('configured (' + _mask(gemini) + ')') if gemini else 'not set (optional)'}**
+
+**If you just added the secrets in Hugging Face → Settings → Variables and secrets,
+the container has to be restarted for them to be injected as environment variables.**
+
+To restart:
+1. Open the Space's **Settings** tab.
+2. Scroll to the very bottom → click **Factory rebuild** (or **Restart this Space**).
+3. Wait ~30 seconds for the container to come back up, then refresh this page.
+
+If after a restart this still says MISSING, double-check:
+- The secret **name** is spelled exactly `TAVILY_API_KEY` / `GROQ_API_KEY` (uppercase, underscore).
+- You clicked **Save** after typing the value (HF requires an explicit save).
+- The value has no leading/trailing whitespace.
+""",
+            )
+        return
 
     if not session_id:
         st.info("Create a new session from the sidebar to start chatting.")
@@ -350,10 +385,6 @@ def main() -> None:
 
     query = st.chat_input("Ask anything — I'll search the web, read the sources, and cite them.")
     if not query:
-        return
-
-    if not (os.getenv("TAVILY_API_KEY") and (os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"))):
-        st.error("Cannot run the agent — API keys are not configured.")
         return
 
     try:
