@@ -52,6 +52,37 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _word_stream(text: str):
+    """Yield word-sized chunks (with trailing space) for a typewriter-feel UI."""
+    parts = text.split(" ")
+    for i, w in enumerate(parts):
+        yield (w if i == 0 else " " + w)
+
+
+def _humanize_llm_error(err: str) -> str:
+    """Turn raw provider error strings into a friendly message for the UI."""
+    msg = err.lower()
+    if "rate_limit_exceeded" in msg or "rate limit" in msg or "429" in msg:
+        if "tokens per minute" in msg or "tpm" in msg:
+            return (
+                "The LLM hit its per-minute token limit on the free tier. "
+                "Wait ~60 seconds and try again, or set GEMINI_API_KEY as a fallback "
+                "(see .env.example)."
+            )
+        return (
+            "The LLM provider rate-limited us. Wait a moment and try again, "
+            "or configure a fallback LLM (Gemini / Ollama)."
+        )
+    if "context length" in msg or "too large" in msg or " 413" in msg or "413," in msg:
+        return (
+            "The request was too large for the free-tier LLM. We've already tried to "
+            "shrink the context — try a more specific question or set MAX_CONTEXT_TOKENS lower."
+        )
+    if "unauthorized" in msg or "invalid api key" in msg or "401" in msg:
+        return "The LLM API key was rejected. Check that GROQ_API_KEY (or GEMINI_API_KEY) is correct."
+    return f"LLM provider error: {err[:300]}"
+
+
 class DeepResearchAgent:
     """End-to-end agent: orchestrates plan → search → fetch → select → answer."""
 
@@ -63,7 +94,7 @@ class DeepResearchAgent:
         *,
         max_search_results: Optional[int] = None,
         max_pages_to_fetch: Optional[int] = None,
-        max_snippets: int = 8,
+        max_snippets: int = 6,
         max_context_tokens: Optional[int] = None,
         fetch_concurrency: int = 6,
     ) -> None:
@@ -71,10 +102,10 @@ class DeepResearchAgent:
         self.search = search or TavilySearch()
         self.store = store or SessionStore()
 
-        self.max_search_results = max_search_results or _env_int("MAX_SEARCH_RESULTS", 8)
-        self.max_pages_to_fetch = max_pages_to_fetch or _env_int("MAX_PAGES_TO_FETCH", 6)
+        self.max_search_results = max_search_results or _env_int("MAX_SEARCH_RESULTS", 6)
+        self.max_pages_to_fetch = max_pages_to_fetch or _env_int("MAX_PAGES_TO_FETCH", 5)
         self.max_snippets = max_snippets
-        self.max_context_tokens = max_context_tokens or _env_int("MAX_CONTEXT_TOKENS", 4000)
+        self.max_context_tokens = max_context_tokens or _env_int("MAX_CONTEXT_TOKENS", 2500)
         self.fetch_concurrency = fetch_concurrency
 
     # ------------------------------------------------------------------ public API
@@ -107,6 +138,17 @@ class DeepResearchAgent:
             yield evt(Phase.PLAN_DONE, f"Planner fallback used ({e!s})", plan=plan.model_dump())
         else:
             yield evt(Phase.PLAN_DONE, "Plan ready", plan=plan.model_dump())
+
+        # --- Short-circuit: non-research input (greeting/chitchat/meta) -------
+        if not plan.is_research:
+            async for ev in self._stream_direct_response(
+                session_id=session_id,
+                query=query,
+                plan=plan,
+                t0=t0,
+            ):
+                yield ev
+            return
 
         # --- Phase 2: SEARCH -------------------------------------------
         yield evt(
@@ -230,13 +272,13 @@ class DeepResearchAgent:
         raw_chunks: list[str] = []
         try:
             async for delta in self.llm.chat_stream(
-                prompt_messages, temperature=0.2, max_tokens=1500
+                prompt_messages, temperature=0.2, max_tokens=1200
             ):
                 raw_chunks.append(delta)
                 yield evt(Phase.ANSWER_TOKEN, delta=delta)
         except LLMError as e:
             log.exception("LLM stream failed")
-            yield evt(Phase.ERROR, f"LLM failed: {e!s}")
+            yield evt(Phase.ERROR, _humanize_llm_error(str(e)))
             return
 
         raw_answer = "".join(raw_chunks).strip()
@@ -308,10 +350,79 @@ class DeepResearchAgent:
         )
         data = await self.llm.chat_json(msgs, temperature=0.1, max_tokens=600)
         try:
+            is_research = bool(data.get("is_research", True))
+            direct = str(data.get("direct_response") or "").strip()
+            search_queries = [str(x) for x in (data.get("search_queries") or [])][:6]
+            if is_research and not search_queries:
+                # Planner said research but gave no queries — fall back to the user's text.
+                search_queries = [query]
             return Plan(
-                research_goal=str(data.get("research_goal") or query),
+                research_goal=str(data.get("research_goal") or (query if is_research else "")),
                 sub_questions=[str(x) for x in (data.get("sub_questions") or [])][:6],
-                search_queries=[str(x) for x in (data.get("search_queries") or [])][:6] or [query],
+                search_queries=search_queries,
+                is_research=is_research,
+                direct_response=direct,
             )
         except Exception:  # noqa: BLE001
-            return Plan(research_goal=query, sub_questions=[query], search_queries=[query])
+            return Plan(
+                research_goal=query,
+                sub_questions=[query],
+                search_queries=[query],
+                is_research=True,
+            )
+
+    async def _stream_direct_response(
+        self,
+        *,
+        session_id: str,
+        query: str,
+        plan: Plan,
+        t0: float,
+    ) -> AsyncIterator[ProgressEvent]:
+        """Emit a tiny event stream for non-research inputs (greetings, meta, chitchat)."""
+        reply = (plan.direct_response or "").strip() or (
+            "I am a web-research assistant. Ask me a factual question and I will search "
+            "the web, read the sources, and give you a cited answer."
+        )
+
+        yield evt(Phase.ANSWER_START, "Responding")
+        # Stream the canned reply word-by-word so the UI feels alive.
+        for token in _word_stream(reply):
+            yield evt(Phase.ANSWER_TOKEN, delta=token)
+        yield evt(
+            Phase.ANSWER_DONE,
+            "Answer complete",
+            raw_answer=reply,
+            final_answer=reply,
+            citation_coverage=1.0,
+            cited_sids=[],
+            invalid_sids=[],
+            unique_domains=[],
+        )
+
+        # Persist as a normal turn so it shows up in the conversation history.
+        latency_ms = int((time.perf_counter() - t0) * 1000)
+        turn = Turn(
+            query=query,
+            plan=plan,
+            search_queries=[],
+            urls_opened=[],
+            snippets=[],
+            final_answer=reply,
+            ts=now_iso(),
+            latency_ms=latency_ms,
+        )
+        self.store.append_message(session_id, Message(role="user", content=query))
+        self.store.append_message(session_id, Message(role="assistant", content=reply))
+        self.store.append_turn(session_id, turn)
+
+        yield evt(
+            Phase.DONE,
+            f"Done in {latency_ms / 1000:.1f}s",
+            latency_ms=latency_ms,
+            final_answer=reply,
+            n_snippets=0,
+            n_domains=0,
+            citation_coverage=1.0,
+            invalid_sids=[],
+        )

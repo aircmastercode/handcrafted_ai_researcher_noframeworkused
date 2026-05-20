@@ -85,11 +85,18 @@ class Snippet(BaseModel):
 
 
 class Plan(BaseModel):
-    """The agent's research plan for a single user query."""
+    """The agent's research plan for a single user query.
+
+    For non-research inputs (greetings, chitchat, meta questions about the agent
+    itself), `is_research` is False and `direct_response` carries a short reply
+    that the agent emits without doing any web search.
+    """
 
     research_goal: str
     sub_questions: list[str] = Field(default_factory=list)
     search_queries: list[str] = Field(default_factory=list)
+    is_research: bool = True
+    direct_response: str = ""
 
 
 # ---------------------------------------------------------------------------

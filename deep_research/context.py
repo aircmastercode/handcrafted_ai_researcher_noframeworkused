@@ -103,13 +103,19 @@ def select_context(
     query: str,
     pages: list[FetchedPage],
     *,
-    max_snippets: int = 8,
-    max_tokens: int = 4000,
+    max_snippets: int = 6,
+    max_tokens: int = 2500,
     mmr_lambda: float = 0.65,
-    target_words: int = 220,
-    overlap_words: int = 40,
+    target_words: int = 200,
+    overlap_words: int = 30,
+    per_snippet_token_cap: int = 450,
 ) -> list[Snippet]:
-    """Return budget-respecting, diverse, semantically-ranked snippets with stable ids."""
+    """Return budget-respecting, diverse, semantically-ranked snippets with stable ids.
+
+    Hard caps protect us from blowing the LLM's per-minute token budget:
+      - every individual chunk is truncated to `per_snippet_token_cap` tokens;
+      - the total selected snippet tokens never exceed `max_tokens`.
+    """
     if not pages:
         return []
 
@@ -149,7 +155,7 @@ def select_context(
         lambda_=mmr_lambda,
     )
 
-    # 5) Enforce token budget and finalize Snippet objects
+    # 5) Enforce per-snippet AND total token budget. Truncate, never silently skip.
     snippets: list[Snippet] = []
     used_tokens = 0
     sid_counter = 0
@@ -157,14 +163,22 @@ def select_context(
         if len(snippets) >= max_snippets:
             break
         c = candidates[i]
-        tok = count_tokens(c["text"])
-        if used_tokens + tok > max_tokens and snippets:
-            continue  # try a smaller next candidate rather than truncating
+        text = _truncate_to_tokens(c["text"], per_snippet_token_cap)
+        tok = count_tokens(text)
+        if used_tokens + tok > max_tokens:
+            # Try to fit a shrunk version; skip only if it still wouldn't fit.
+            remaining = max_tokens - used_tokens
+            if remaining < 80:  # not worth including a tiny scrap
+                continue
+            text = _truncate_to_tokens(text, remaining)
+            tok = count_tokens(text)
+            if tok < 60:
+                continue
         sid_counter += 1
         snippets.append(
             Snippet(
                 sid=f"S{sid_counter}",
-                text=c["text"],
+                text=text,
                 url=c["url"],
                 title=c["title"],
                 domain=c["domain"],
@@ -175,6 +189,33 @@ def select_context(
         used_tokens += tok
 
     return snippets
+
+
+def _truncate_to_tokens(text: str, max_tokens: int) -> str:
+    """Truncate text so its token count is at most `max_tokens`.
+
+    Tries tiktoken for accuracy; falls back to a 4-chars-per-token approximation.
+    Truncation rounds back to the previous word boundary so we never end mid-word.
+    """
+    if max_tokens <= 0 or not text:
+        return ""
+    try:
+        import tiktoken  # type: ignore
+
+        enc = tiktoken.get_encoding("cl100k_base")
+        tokens = enc.encode(text)
+        if len(tokens) <= max_tokens:
+            return text
+        truncated = enc.decode(tokens[:max_tokens])
+        # Round back to last whitespace to avoid mid-word ends.
+        if " " in truncated:
+            truncated = truncated.rsplit(" ", 1)[0]
+        return truncated
+    except Exception:
+        approx_chars = max_tokens * 4
+        if len(text) <= approx_chars:
+            return text
+        return text[:approx_chars].rsplit(" ", 1)[0]
 
 
 def _mmr_with_domain_diversity(

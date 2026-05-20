@@ -193,14 +193,42 @@ def _clean_one_line(text: str) -> str:
 def chunk_text(
     text: str,
     *,
-    target_words: int = 220,
-    overlap_words: int = 40,
+    target_words: int = 200,
+    overlap_words: int = 30,
+    max_chars: int = 1400,
 ) -> list[str]:
-    """Split text into overlapping word-windows. Approx 220 words ≈ 280 tokens."""
+    """Split text into ~`target_words`-sized chunks with hard `max_chars` cap.
+
+    A single huge paragraph is broken down by sentences so no chunk ever exceeds
+    `max_chars` (~350 tokens). This is what protects us from oversized prompts.
+    """
     if not text:
         return []
-    # Split by paragraphs first; then pack into windows by word count.
-    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+
+    # First: split paragraphs. Then split any oversized paragraph by sentences.
+    raw_paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    paragraphs: list[str] = []
+    for p in raw_paragraphs:
+        if len(p) <= max_chars:
+            paragraphs.append(p)
+            continue
+        # Sentence-level split
+        sentences = re.split(r"(?<=[.!?])\s+", p)
+        buf_s: list[str] = []
+        buf_s_len = 0
+        for s in sentences:
+            s_len = len(s) + 1
+            if buf_s and buf_s_len + s_len > max_chars:
+                paragraphs.append(" ".join(buf_s))
+                buf_s = [s]
+                buf_s_len = s_len
+            else:
+                buf_s.append(s)
+                buf_s_len += s_len
+        if buf_s:
+            paragraphs.append(" ".join(buf_s))
+
+    # Pack the (now bounded) paragraphs into word-target chunks.
     windows: list[str] = []
     buf: list[str] = []
     buf_len = 0
@@ -209,9 +237,12 @@ def chunk_text(
         nonlocal buf, buf_len
         if not buf:
             return
-        windows.append(" ".join(buf).strip())
+        window = " ".join(buf).strip()
+        # Hard truncate at max_chars as a final safety net.
+        if len(window) > max_chars:
+            window = window[:max_chars].rsplit(" ", 1)[0]
+        windows.append(window)
         if overlap_words > 0:
-            # keep tail as overlap into next window
             tail_words = " ".join(buf).split()[-overlap_words:]
             buf = [" ".join(tail_words)]
             buf_len = len(tail_words)
@@ -227,7 +258,7 @@ def chunk_text(
         buf_len += n
     flush()
 
-    # Deduplicate near-identical windows that can arise from overlap on short docs
+    # Deduplicate near-identical windows that can arise from overlap on short docs.
     seen: set[str] = set()
     out: list[str] = []
     for w in windows:
