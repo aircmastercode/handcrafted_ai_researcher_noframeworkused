@@ -8,6 +8,7 @@
 *.db-journal
 session.db
 eval/results.json
+eval/report.md
 eval/sample_runs/
 fastembed_cache/
 

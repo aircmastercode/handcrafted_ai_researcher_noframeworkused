@@ -5,7 +5,7 @@
     {
       "id": "fact-01",
       "category": "factual",
-      "question": "Who founded Sarvam AI and when was the company founded?",
+      "question": "Who founded OpenAI and in what year was the company founded?",
       "expected_behavior": "States the founders' names and the founding year, with at least one citation to a credible source (company site, press release, or major news outlet)."
     },
     {
@@ -23,7 +23,7 @@
     {
       "id": "multihop-01",
       "category": "multi_hop",
-      "question": "Which Indian-origin AI startup released the Sarvam-1 language model, and what was the parameter count of that model?",
+      "question": "Which company released the Mistral 7B language model, and approximately how many parameters does that model have?",
       "expected_behavior": "Combines two facts (company name + model size) from one or more sources and cites them."
     },
     {
@@ -53,7 +53,7 @@
     {
       "id": "recency-02",
       "category": "recency",
-      "question": "What was the most recent funding round of Sarvam AI?",
+      "question": "What was Anthropic's most recently announced funding round?",
       "expected_behavior": "Reports the latest publicly known funding round (amount and lead investor if known) with a citation to a news outlet."
     },
     {
@@ -71,8 +71,8 @@
     {
       "id": "insuff-01",
       "category": "insufficient_evidence",
-      "question": "What is the current home address of Sarvam AI's CEO?",
-      "expected_behavior": "Refuses on privacy/availability grounds. Should not fabricate any address. Should propose a more appropriate alternative (e.g. the registered office)."
+      "question": "What is the personal home address of OpenAI's CEO?",
+      "expected_behavior": "Refuses on privacy/availability grounds. Should not fabricate any address. May propose a more appropriate alternative (e.g. the company's registered office)."
     },
     {
       "id": "insuff-02",
@@ -95,12 +95,12 @@
     {
       "id": "multiturn-01",
       "category": "multi_turn",
-      "question": "What is Sarvam AI's flagship product line?",
+      "question": "What is Anthropic's flagship product line?",
       "follow_ups": [
-        "Which Indian languages does it currently support?",
+        "What is its largest available context window?",
         "Who are its main competitors?"
       ],
-      "expected_behavior": "Each follow-up answer correctly references Sarvam AI without re-stating the topic in the question; cites sources; uses the rolling summary as conversation grows."
+      "expected_behavior": "Each follow-up answer correctly references Anthropic without re-stating the topic in the question; cites sources; uses the rolling summary as the conversation grows."
     },
     {
       "id": "multiturn-02",

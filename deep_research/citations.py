@@ -2,7 +2,7 @@
 
 The LLM emits inline placeholders like [S1], [S2]. This module:
   - expands every recognised placeholder into a markdown link
-    `[Title — domain](URL)` (the format the assignment requires);
+    `[Title — domain](URL)`;
   - strips any [S#] that does not map to a real snippet;
   - returns audit data (which sids were referenced, which were missing).
 """

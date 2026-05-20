@@ -47,7 +47,7 @@ async def main():
         print(f"Session: {sid}")
         print("=" * 80)
 
-        await _one(agent, sid, "What is Sarvam AI?")
+        await _one(agent, sid, "What is Anthropic?")
         print("\n" + "=" * 80)
         await _one(agent, sid, "Who are its founders?")
         print("\n" + "=" * 80)

@@ -26,7 +26,7 @@ The agent loop is hand-written Python.
 ## Table of contents
 
 1. [Quickstart](#quickstart)
-2. [Design Note (Part 1)](#design-note-part-1)
+2. [Design note](#design-note)
 3. [Architecture](#architecture)
 4. [Repository layout](#repository-layout)
 5. [Configuration](#configuration)
@@ -92,7 +92,7 @@ python tests/test_smoke_e2e.py    # full agent pipeline with mocked LLM/Search/F
 
 ---
 
-## Design Note (Part 1)
+## Design note
 
 ### Target users and the problem being solved
 
@@ -238,19 +238,18 @@ SarvamAi/
 └── Dockerfile                   Container recipe for Hugging Face Spaces (sdk: docker)
 ```
 
-Planning and design documents (the original assignment problem statement, our
-pre-coding plan, and the full post-implementation walkthrough) live in a
-sibling folder one level above this repo, so the Hugging Face deployment stays
-focused on the runnable app:
+Design and planning notes (the initial problem framing, the pre-coding plan,
+and the full post-implementation walkthrough) live in a sibling folder one
+level above this repo, so the Hugging Face deployment stays focused on the
+runnable app:
 
 ```
-company assessment/
+project root/
 ├── SarvamAi/                    ← this repo (deployed to HF Spaces)
 └── understanding_planning/
-    ├── assignment.txt
-    ├── what_is_asked.md
-    ├── our_approach.md
-    └── how_it_works.md          ← the complete post-implementation walkthrough
+    ├── what_is_asked.md         design constraints and requirements
+    ├── our_approach.md          the pre-coding plan
+    └── how_it_works.md          the complete post-implementation walkthrough
 ```
 
 ---
@@ -302,9 +301,9 @@ Once the app is running, try any of these:
 - "Hello" — *bypasses the research pipeline and responds instantly (~0.5 s)*
 - "Who is the current Prime Minister of India?" — *cites multiple authoritative domains*
 - "Compare the free-tier daily request limits of Groq, Gemini, and Cerebras."
-- "Who founded Sarvam AI and when?"
+- "Who founded OpenAI and when?"
 - "Is intermittent fasting safe for people with type 2 diabetes?" *(expect explicit conflict acknowledgement)*
-- "What is the current home address of Sarvam AI's CEO?" *(expect a refusal)*
+- "What is the personal home address of OpenAI's CEO?" *(expect a refusal)*
 - "What is the latest open-weights Llama release?"
 
 Each answer shows an expandable **Audit panel** with the plan, every search query, every
@@ -445,13 +444,13 @@ model). After that the app is live at the Space URL; subsequent cold starts are
 
 ---
 
-## Assumptions
+## Notes & assumptions
 
-- We assume the reviewer has free-tier accounts on Tavily and Groq (both are no-card signups).
-- We assume English-language web sources; the agent will still work on other languages but the embedder is English-centric.
+- Free-tier accounts on Tavily and Groq are required (both are no-card signups).
+- English-language web sources are the primary target; the agent still works on other languages but the embedder is English-centric.
 - Defaults are tuned to fit **Groq free-tier's 12,000 tokens-per-minute** cap:
   `MAX_SEARCH_RESULTS=6`, `MAX_PAGES_TO_FETCH=5`, `MAX_CONTEXT_TOKENS=2500`,
   `max_snippets=6`, with per-snippet hard cap of 450 tokens and per-chunk cap of 1,400 chars.
-- The LLM-as-judge is the same Groq model used for answering. This is a known caveat in RAG evaluation; we mitigate by also reporting automatic metrics that don't depend on the judge.
+- The LLM-as-judge is the same Groq model used for answering. This is a known caveat in RAG evaluation; mitigated by also reporting automatic metrics that don't depend on the judge.
 - Sessions live in a SQLite file on the container's ephemeral disk. They persist while the Space is warm but reset on hard restarts. Acceptable for a demo; Hugging Face Persistent Storage would make them durable.
 - Chitchat/greeting/meta inputs ("hello", "thanks", "what can you do?") deliberately bypass the research pipeline — no Tavily credits used, response in <1 s.

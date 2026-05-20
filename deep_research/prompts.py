@@ -2,7 +2,7 @@
 
 Templates are explicit about:
   - the role of the agent
-  - the citation format (matches the assignment exactly)
+  - the citation format ([Title — domain](URL))
   - what to do when evidence is weak / conflicting / missing
   - that NO chain-of-thought is to be exposed in the answer
 """

@@ -23,7 +23,7 @@ from deep_research.agent import DeepResearchAgent  # noqa: E402
 from deep_research.progress import Phase  # noqa: E402
 from deep_research.session import SessionStore  # noqa: E402
 
-DEFAULT_QUESTION = "Who founded Sarvam AI and when was the company founded?"
+DEFAULT_QUESTION = "Who founded OpenAI and in what year?"
 
 
 def _truncate(s: str, n: int = 140) -> str:
