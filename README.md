@@ -17,8 +17,9 @@ short_description: Web research agent with cited answers + eval harness.
 **No agent framework used.** No LangChain, LangGraph, CrewAI, LlamaIndex, or Haystack.
 The agent loop is hand-written Python.
 
-- **Live demo:** `<add Hugging Face Spaces URL here>`
-- **Video walkthrough:** `<add 2–3 minute Loom/YouTube link here>`
+- **Live demo:** https://huggingface.co/spaces/itsmastercode42/deep-research-agent
+- **Source code:** https://huggingface.co/spaces/itsmastercode42/deep-research-agent/tree/main
+- **Video walkthrough:** *to be added — 2–3 min Loom/YouTube/Drive link*
 
 ---
 
@@ -229,10 +230,27 @@ SarvamAi/
 │   ├── judges.py                LLM-as-judge wrapper
 │   ├── results.json             (produced by run_eval)
 │   └── report.md                (produced by run_eval)
+├── tests/
+│   ├── test_smoke.py            Offline tests — every module in isolation
+│   ├── test_smoke_e2e.py        Offline tests — full pipeline with mocks
+│   ├── live_test.py             Live single-turn check against real APIs
+│   └── live_test_multiturn.py   Live multi-turn check (session memory)
+└── Dockerfile                   Container recipe for Hugging Face Spaces (sdk: docker)
+```
+
+Planning and design documents (the original assignment problem statement, our
+pre-coding plan, and the full post-implementation walkthrough) live in a
+sibling folder one level above this repo, so the Hugging Face deployment stays
+focused on the runnable app:
+
+```
+company assessment/
+├── SarvamAi/                    ← this repo (deployed to HF Spaces)
 └── understanding_planning/
     ├── assignment.txt
     ├── what_is_asked.md
-    └── our_approach.md          (the full plan, written before any code)
+    ├── our_approach.md
+    └── how_it_works.md          ← the complete post-implementation walkthrough
 ```
 
 ---
@@ -279,8 +297,10 @@ On Hugging Face Spaces the keys are configured under **Settings → Variables an
 
 ## Example conversations
 
-Once the app is running:
+Once the app is running, try any of these:
 
+- "Hello" — *bypasses the research pipeline and responds instantly (~0.5 s)*
+- "Who is the current Prime Minister of India?" — *cites multiple authoritative domains*
 - "Compare the free-tier daily request limits of Groq, Gemini, and Cerebras."
 - "Who founded Sarvam AI and when?"
 - "Is intermittent fasting safe for people with type 2 diabetes?" *(expect explicit conflict acknowledgement)*
@@ -389,9 +409,13 @@ Hugging Face Spaces is a git repository. From inside `SarvamAi/`:
 
 git init -b main                                # only needed the first time
 git add . && git commit -m "Initial deep research agent"
-git remote add space https://huggingface.co/spaces/<your-username>/deep-research-agent
+git remote add space https://huggingface.co/spaces/itsmastercode42/deep-research-agent
 git push space main
 # When prompted, use your username + the hf_... write token as the password.
+#
+# (Or push with credentials embedded for an unattended push:
+#   git push https://<user>:<hf_token>@huggingface.co/spaces/<user>/deep-research-agent main
+#  — the token is NOT persisted in .git/config this way.)
 ```
 
 ### Add your secrets
@@ -425,5 +449,9 @@ model). After that the app is live at the Space URL; subsequent cold starts are
 
 - We assume the reviewer has free-tier accounts on Tavily and Groq (both are no-card signups).
 - We assume English-language web sources; the agent will still work on other languages but the embedder is English-centric.
-- We deliberately limit `MAX_PAGES_TO_FETCH` to 6 to stay well within Tavily's free monthly credit budget across an eval run + interactive demos.
-- The LLM-as-judge is the same Groq model used for answering. This is a known caveat in RAG evaluation; we mitigate by also reporting automatic metrics that do not depend on the judge.
+- Defaults are tuned to fit **Groq free-tier's 12,000 tokens-per-minute** cap:
+  `MAX_SEARCH_RESULTS=6`, `MAX_PAGES_TO_FETCH=5`, `MAX_CONTEXT_TOKENS=2500`,
+  `max_snippets=6`, with per-snippet hard cap of 450 tokens and per-chunk cap of 1,400 chars.
+- The LLM-as-judge is the same Groq model used for answering. This is a known caveat in RAG evaluation; we mitigate by also reporting automatic metrics that don't depend on the judge.
+- Sessions live in a SQLite file on the container's ephemeral disk. They persist while the Space is warm but reset on hard restarts. Acceptable for a demo; Hugging Face Persistent Storage would make them durable.
+- Chitchat/greeting/meta inputs ("hello", "thanks", "what can you do?") deliberately bypass the research pipeline — no Tavily credits used, response in <1 s.
