@@ -1,0 +1,116 @@
+{
+  "version": "1.0",
+  "description": "Curated questions exercising the Deep Research Agent across categories: factual, multi-hop, comparison, insufficient_evidence, conflicting_sources, recency, and multi-turn.",
+  "items": [
+    {
+      "id": "fact-01",
+      "category": "factual",
+      "question": "Who founded Sarvam AI and when was the company founded?",
+      "expected_behavior": "States the founders' names and the founding year, with at least one citation to a credible source (company site, press release, or major news outlet)."
+    },
+    {
+      "id": "fact-02",
+      "category": "factual",
+      "question": "What is the context-window length advertised for Google's Gemini 2.5 Flash model?",
+      "expected_behavior": "Cites a Google/DeepMind primary source and states the context window in tokens."
+    },
+    {
+      "id": "fact-03",
+      "category": "factual",
+      "question": "On which inference hardware does Groq run its public LLM API?",
+      "expected_behavior": "Mentions Groq LPU (Language Processing Unit) with a citation to groq.com or a credible benchmark page."
+    },
+    {
+      "id": "multihop-01",
+      "category": "multi_hop",
+      "question": "Which Indian-origin AI startup released the Sarvam-1 language model, and what was the parameter count of that model?",
+      "expected_behavior": "Combines two facts (company name + model size) from one or more sources and cites them."
+    },
+    {
+      "id": "multihop-02",
+      "category": "multi_hop",
+      "question": "Compare the free-tier daily request limits of Groq, Google Gemini, and Cerebras for general-purpose chat models.",
+      "expected_behavior": "Reports numeric daily limits for all three providers with citations to each provider's docs or a credible comparison page."
+    },
+    {
+      "id": "compare-01",
+      "category": "comparison",
+      "question": "How does Trafilatura compare to readability-lxml for extracting article text from arbitrary web pages?",
+      "expected_behavior": "Notes that Trafilatura outperforms readability-lxml on standard benchmarks and cites at least one evaluation or benchmark source."
+    },
+    {
+      "id": "compare-02",
+      "category": "comparison",
+      "question": "What are the main differences between Tavily and Serper as search APIs for AI agents?",
+      "expected_behavior": "Mentions LLM-optimized vs raw SERP differences, pricing/credits, and cites supporting sources."
+    },
+    {
+      "id": "recency-01",
+      "category": "recency",
+      "question": "What is the latest open-weights Llama model released by Meta, and what are its key sizes?",
+      "expected_behavior": "Identifies the most recent Llama release with a recent citation (within the last ~12 months) and lists model sizes."
+    },
+    {
+      "id": "recency-02",
+      "category": "recency",
+      "question": "What was the most recent funding round of Sarvam AI?",
+      "expected_behavior": "Reports the latest publicly known funding round (amount and lead investor if known) with a citation to a news outlet."
+    },
+    {
+      "id": "conflict-01",
+      "category": "conflicting_sources",
+      "question": "Is intermittent fasting safe for people with type 2 diabetes?",
+      "expected_behavior": "Acknowledges that medical sources disagree, explicitly says so, and cites at least two sources representing different positions."
+    },
+    {
+      "id": "conflict-02",
+      "category": "conflicting_sources",
+      "question": "Does coffee consumption increase or decrease the long-term risk of cardiovascular disease?",
+      "expected_behavior": "Notes that recent studies show mixed evidence; explicitly acknowledges the disagreement and cites both sides."
+    },
+    {
+      "id": "insuff-01",
+      "category": "insufficient_evidence",
+      "question": "What is the current home address of Sarvam AI's CEO?",
+      "expected_behavior": "Refuses on privacy/availability grounds. Should not fabricate any address. Should propose a more appropriate alternative (e.g. the registered office)."
+    },
+    {
+      "id": "insuff-02",
+      "category": "insufficient_evidence",
+      "question": "What will the price of Bitcoin be on December 31, 2030?",
+      "expected_behavior": "Explicitly states that future prices cannot be known; declines to predict; may cite analyst opinion ranges but flags them as speculation."
+    },
+    {
+      "id": "fact-04",
+      "category": "factual",
+      "question": "What licensing terms does the Llama 3.3 70B model ship under?",
+      "expected_behavior": "Names the Llama 3.x community/community-plus license and cites Meta's official license page."
+    },
+    {
+      "id": "compare-03",
+      "category": "comparison",
+      "question": "Hugging Face Spaces vs Streamlit Community Cloud — which one is better for hosting a free Streamlit application that needs to load a 200MB ML model?",
+      "expected_behavior": "Compares RAM/disk limits and sleep behavior. Reaches a defensible recommendation citing both platforms' docs."
+    },
+    {
+      "id": "multiturn-01",
+      "category": "multi_turn",
+      "question": "What is Sarvam AI's flagship product line?",
+      "follow_ups": [
+        "Which Indian languages does it currently support?",
+        "Who are its main competitors?"
+      ],
+      "expected_behavior": "Each follow-up answer correctly references Sarvam AI without re-stating the topic in the question; cites sources; uses the rolling summary as conversation grows."
+    },
+    {
+      "id": "multiturn-02",
+      "category": "multi_turn",
+      "question": "What is the FastEmbed library?",
+      "follow_ups": [
+        "How does it compare to sentence-transformers?",
+        "Does it depend on PyTorch?"
+      ],
+      "expected_behavior": "Maintains topical coherence across the three turns and cites primary sources."
+    }
+  ]
+}

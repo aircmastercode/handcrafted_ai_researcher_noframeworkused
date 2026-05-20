@@ -1,0 +1,29 @@
+# --- Deep Research Agent: runtime dependencies ---
+# Pinned to stable upper bounds known to work together (Nov 2025 / 2026).
+
+# UI
+streamlit>=1.41,<2.0
+
+# LLM providers
+groq>=0.15,<1.0
+google-genai>=1.5,<2.0
+
+# Web search (Tavily is called directly via httpx — no SDK needed)
+
+# HTTP + HTML extraction
+httpx>=0.28,<1.0
+trafilatura>=2.0,<3.0
+beautifulsoup4>=4.12,<5.0
+
+# Embeddings + re-ranking (CPU, ONNX-based, no torch dependency)
+fastembed>=0.5,<1.0
+
+# Tokenization
+tiktoken>=0.8,<1.0
+
+# Validation + config
+pydantic>=2.10,<3.0
+python-dotenv>=1.0,<2.0
+
+# Eval
+pytest>=8.3,<9.0
